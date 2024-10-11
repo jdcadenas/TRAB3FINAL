@@ -128,13 +128,13 @@ int main()
     sem_init(&capacidad_consultorio, 0, 28);
     for (int i = 0; i < NUM_MEDICOS; i++)
     {
-        sem_init(&medicos_sem[NUM_MEDICOS],0,0);
+        sem_init(&medicos_sem[i],0,0);
         
     }
 
      for (int i = 0; i < NUM_CAJEROS; i++)
     {
-        sem_init(&cajeros[NUM_CAJEROS],0,0);
+        sem_init(&cajeros[i],0,0);
         
     }
     sem_init(&abonar_consulta,0,0);
