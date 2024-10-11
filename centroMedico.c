@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <unistd.h>
 #include <time.h>
 
 #define NUM_MEDICOS 4        // atienden 4 medicos
@@ -156,21 +157,36 @@ int main()
 
         pthread_create(&h_pacientes, NULL, paciente, NULL);
         printf("Creando hilo de paciente \n");
-        sem_destroy(&capacidad_consultorio);
-        for (int i = 0; i < NUM_MEDICOS; i++)
 
-        /* eliminación de semáforos*/    
+        //******  Esperar a que todos los hilos de médicos terminen
+
+        for (int i = 0; i < NUM_MEDICOS; i++)
         {
-            sem_destroy(&medicos_sem[i]);
+            pthread_join(h_medicos[i], NULL);
         }
+
         for (int i = 0; i < NUM_CAJEROS; i++)
         {
-            sem_destroy(&cajeros[i]);
+            pthread_join(h_cajeros[i], NULL);
         }
 
-        sem_destroy(&abonar_consulta);
-        sem_destroy(&consulta_terminada);
-        sem_destroy(&mutex);
-        return 0;
+        pthread_join(h_pacientes, NULL);
+
+        sleep(1);
     }
+    /* eliminación de semáforos*/
+    sem_destroy(&capacidad_consultorio);
+    for (int i = 0; i < NUM_MEDICOS; i++)
+    {
+        sem_destroy(&medicos_sem[i]);
+    }
+    for (int i = 0; i < NUM_CAJEROS; i++)
+    {
+        sem_destroy(&cajeros[i]);
+    }
+
+    sem_destroy(&abonar_consulta);
+    sem_destroy(&consulta_terminada);
+    sem_destroy(&mutex);
+    return 0;
 }
