@@ -23,7 +23,7 @@ sem_t consulta_terminada;
 sem_t mutex;
 sem_t fila_vip;
 
-bool terminar;
+volatile sig_atomic_t terminar = 0;
 int pacientes_por_medico[NUM_MEDICOS] = {0};
 int pacientes_vip_por_medico[NUM_MEDICOS] = {0};
 bool hay_paciente_vp = false;
@@ -36,7 +36,7 @@ void handle_signal(int sig)
     int total_clientes = 0;
     if (sig == SIGINT || sig == SIGTERM)
     {
-        terminar = true;
+        terminar = 1;
         printf("Resultado de consultorio\n");
         printf("Handle signal %d\n", sig);
         for (int i = 0; i < NUM_MEDICOS; i++)
@@ -63,7 +63,9 @@ void *medico(void *arg)
             sem_wait(&fila_vip);
             printf("Médico %d atendiendo a un paciente VIP\n", id_medico);
             pacientes_vip_por_medico[id_medico]++;
-        }else{
+        }
+        else
+        {
             // Si no hay VIPs, esperar por un paciente regular
             sem_wait(&medicos_sem[id_medico]);
             printf("Médico %d atendiendo a un paciente regular\n", id_medico);
@@ -92,7 +94,7 @@ void *paciente(void *arg)
     {
         sem_wait(&capacidad_consultorio);
         printf("Cliente esperando ser atendido\n");
-        sem_wait(mutex);
+        sem_wait(&mutex);
         fila = rand() % 4;
         if (fila == FILA_VIP)
         {
@@ -103,7 +105,7 @@ void *paciente(void *arg)
         {
             sem_post(&medicos_sem[fila]);
         }
-        sem_post(mutex);
+        sem_post(&mutex);
     }
 }
 
@@ -114,15 +116,14 @@ int main()
     signal(SIGTERM, handle_signal);
 
     /*Inicializacion semilla num aleatorios*/
-
     srand(time(NULL));
+
     /*Declaracion de Hilos*/
     pthread_t h_medicos[NUM_MEDICOS];
     pthread_t h_cajeros[NUM_CAJEROS];
     pthread_t h_pacientes;
 
     /*Inicializacion de semaforos*/
-
     sem_init(&capacidad_consultorio, 0, 28);
     for (int i = 0; i < NUM_MEDICOS; i++)
     {
@@ -152,17 +153,21 @@ int main()
             pthread_create(&h_cajeros[i], NULL, cajero, NULL);
             printf("Creando hilo de cajero %d \n", i);
         }
-        pthread_create(&h_pacientes, NULL, paciente, NULL);
-    }
-    sem_destroy(&capacidad_consultorio);
-    for (int i = 0; i < NUM_MEDICOS; i++)
-    {
-        sem_destroy(medicos_sem[NUM_MEDICOS]);
 
+        pthread_create(&h_pacientes, NULL, paciente, NULL);
+        printf("Creando hilo de paciente \n");
+        sem_destroy(&capacidad_consultorio);
+        for (int i = 0; i < NUM_MEDICOS; i++)
+
+        /* eliminación de semáforos*/    
+        {
+            sem_destroy(&medicos_sem[i]);
+        }
         for (int i = 0; i < NUM_CAJEROS; i++)
         {
-            sem_destroy(cajeros[NUM_CAJEROS]);
+            sem_destroy(&cajeros[i]);
         }
+
         sem_destroy(&abonar_consulta);
         sem_destroy(&consulta_terminada);
         sem_destroy(&mutex);
