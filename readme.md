@@ -3,6 +3,8 @@
 
 # Traajo No 3 Ejercicio 3.1
 
+## Mario Roman TRaversaro
+
 El problema a modelar, se trata de un consultorio médico, con atención a pacientes VIP.
 
 ## Paciente
