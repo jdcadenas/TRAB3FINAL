@@ -1,0 +1,64 @@
+Creando hilo de medico 0 
+Creando hilo de medico 1 
+Creando hilo de medico 2 
+Creando hilo de medico 3 
+el 1 médico atiende a paciente
+contador de pacientes regulares 1 
+el 2 médico atiende a paciente
+contador de pacientes regulares 1 
+Creando hilo de cajero 0 
+el 0 médico atiende a paciente
+contador de pacientes regulares 1 
+Creando hilo de cajero 1 
+el 3 médico atiende a paciente
+contador de pacientes regulares 1 
+Cliente atendido cajero
+Cliente atendido cajero
+Creando hilo de paciente 
+**** Paciente Entrando al centro médico
+Cliente esperando ser atendido
+cliente para la fila 1
+Paciente regularen consulta
+Cliente abonando la consulta
+**** Paciente Entrando al centro médico
+Cliente esperando ser atendido
+cliente para la fila 2
+Paciente regularen consulta
+Cliente atendido cajero
+Cliente abonando la consulta
+**** Paciente Entrando al centro médico
+Cliente esperando ser atendido
+cliente para la fila 4
+llegando paciente vip
+entrar a consulta VIP 
+ Cliente atendido cajero
+Cliente atendido cajero
+Cliente abonando la consulta
+**** Paciente Entrando al centro médico
+Cliente esperando ser atendido
+cliente para la fila 0
+Paciente regularen consulta
+Creando hilo de paciente 
+Cliente atendido cajero
+Cliente abonando la consulta
+**** Paciente Entrando al centro médico
+Cliente esperando ser atendido
+cliente para la fila 4
+llegando paciente vip
+entrar a consulta VIP 
+ **** Paciente Entrando al centro médico
+Cliente esperando ser atendido
+cliente para la fila 1
+Creando hilo de paciente 
+**** Paciente Entrando al centro médico
+Cliente esperando ser atendido
+cliente para la fila 1
+
+
+Resultado de consultorio
+El medico  0 atendio 1 pacientesy 0 Pacientes VIP
+El medico  1 atendio 1 pacientesy 0 Pacientes VIP
+El medico  2 atendio 1 pacientesy 0 Pacientes VIP
+El medico  3 atendio 1 pacientesy 0 Pacientes VIP
+________________________________________________
+Total de clientes atendidos : 4 
