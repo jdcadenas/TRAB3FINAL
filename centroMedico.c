@@ -17,14 +17,12 @@
 
 //****** semaforos
 sem_t capacidad_consultorio;
-sem_t medicos_sem[NUM_MEDICOS];
-sem_t paciente_listo[NUM_MEDICOS];
-sem_t paciente_salir_consultorio[NUM_MEDICOS];
-sem_t cajero_libre;
-sem_t consulta_abonada;
-sem_t consulta_terminada;
+sem_t sem_fila_medicos[NUM_MEDICOS];
+sem_t sem_atencion_medicos[NUM_MEDICOS];
+sem_t sem_atencion_cajeros[NUM_CAJEROS];
+sem_t sem_fila_cajeros;
 sem_t mutex;
-sem_t fila_vip;
+sem_t sem_fila_vip;
 
 volatile sig_atomic_t terminar = 0;
 
@@ -32,51 +30,46 @@ int pacientes_por_medico[NUM_MEDICOS] = {0};
 int pacientes_vip_por_medico[NUM_MEDICOS] = {0};
 bool hay_paciente_vp = false;
 bool hay_paciente[NUM_MEDICOS] = {false};
+int contador_pacientes_regulares[NUM_MEDICOS] = {0};
 
 void *medico(void *arg)
 {
     int id_medico = *(int *)arg;
-    int contador_pacientes_regulares[NUM_MEDICOS] = {0};
+    int contador_pacientes = 0;
 
     while (1)
     {
-        // verificar si hay pacientes VIP
-        if (hay_paciente_vp)
+        // Verificar si hay pacientes en la fila del médico
+        if (sem_trywait(&sem_fila_medicos[id_medico]) == 0) // Condición de espera
         {
-            sem_wait(&fila_vip);
-            printf(">>>> Médico %d atendiendo a un paciente VIP\n", id_medico);
-
-            sem_wait(&mutex); // Sección crítica
-                pacientes_vip_por_medico[id_medico]++; //contador de pacientes vip
-                hay_paciente_vp = false;
-                contador_pacientes_regulares[id_medico] = 0; // Reiniciar contador
-            sem_post(&mutex);
-
-            sem_post(&consulta_terminada);
-            sem_wait(&paciente_salir_consultorio[id_medico]);
-            sem_wait(&medicos_sem[id_medico]);
+            sem_post(&sem_fila_medicos[id_medico]);
+            sem_wait(&sem_atencion_medicos[id_medico]);
+            contador_pacientes++; // Incrementar el contador
         }
         else
         {
-            sem_post(&paciente_listo[id_medico]); // llama a un paciente listo
-            sem_wait(&mutex); // Sección crítica
-                printf("el %d médico atiende a paciente\n", id_medico);
-                pacientes_por_medico[id_medico]++; // Actualizar el contador de pacientes
-                contador_pacientes_regulares[id_medico]++;
-                printf("contador de pacientes regulares %d \n", contador_pacientes_regulares[id_medico]);
-
-                if (contador_pacientes_regulares[id_medico] == 3)
-                {
-                    contador_pacientes_regulares[id_medico] = 0;
-                    sem_post(&fila_vip); // espera a un paciente VIP
-                }
-            sem_post(&mutex);
-
-            sem_post(&consulta_terminada);
-            sem_wait(&paciente_salir_consultorio[id_medico]);
-            sem_wait(&medicos_sem[id_medico]);
-            // Liberar el semáforo para que otro paciente pueda ser atendido
+            // Verificar si hay pacientes VIP y si es el turno de atender
+            if (contador_pacientes >= 3 && sem_trywait(&sem_fila_vip) == 0)
+            {
+                sem_post(&sem_fila_vip);
+                sem_wait(&sem_atencion_medicos[id_medico]);
+                contador_pacientes = 0; // Reiniciar el contador
+            }
+            else
+            {
+                // Si no hay pacientes, dormir
+                printf("Médico %d durmiendo una siesta.\n", id_medico);
+                sleep(2); // Simular siesta
+                continue;
+            }
         }
+
+        // Atender al paciente (simulado)
+        printf("Médico %d atendiendo a un paciente.\n", id_medico);
+        sleep(1); // Simular tiempo de atención
+
+        // Liberar al paciente
+        sem_post(&sem_atencion_medicos[id_medico]);
     }
 }
 
@@ -86,49 +79,119 @@ void *paciente(void *arg)
     while (1)
     {
         printf("**** Paciente Entrando al centro médico\n");
+
         sem_wait(&capacidad_consultorio);
         printf("Cliente esperando ser atendido\n");
 
         // Generar un número aleatorio entre 0 y 4 para establecer la fila del paciente
         // si es fila 4 entonces es fila VIP
         fila = rand() % (5);
+
         printf("cliente para la fila %d\n", fila);
+
         sem_wait(&mutex);
-            if (fila == FILA_VIP)
+        if (fila == FILA_VIP)
+        {
+            // es un paciente VIP
+            hay_paciente_vp = true;
+
+            sem_wait(&sem_fila_vip); //
+            printf(" paciente esperando filavip\n");
+
+            // Buscar un médico disponible para atender al paciente VIP
+            for (int i = 0; i < NUM_MEDICOS; i++)
             {
-                // es un paciente VIP
-                hay_paciente_vp = true;
-                printf("llegando paciente vip\n");
-                sem_post(&fila_vip);                        // incrementar semaforo cola vip
-                printf("entrar a consulta VIP \n ");
-                sem_wait(&consulta_terminada);              // Esperar a que la consulta termine
+                if (sem_trywait(&sem_atencion_medicos[i]) == 0)
+                {
+                    printf("Paciente VIP está siendo atendido por el médico %d.\n", i);
+                    pacientes_vip_por_medico[i]++; // contador de pacientes vip
+                    sem_post(&sem_atencion_medicos[i]);
+                    break;
+                }
             }
-            else
-            {
-                // es un paciente regular 
-                sem_wait(&medicos_sem[fila]);               // Esperar a que haya un espacio en la consulta
-                printf("Paciente regularen consulta\n");
-                // Simular la consulta
-                sleep(1);
-                sem_post(&paciente_listo[fila]);             // Indicar que el paciente está listo para ser atendido
-                sem_wait(&consulta_terminada);               // Esperar a que la consulta termine
-                sem_post(&paciente_salir_consultorio[fila]); // Liberar el espacio en la consulta para otros pacientes
-            }
+            sem_post(&sem_fila_vip);
+        }
+        else
+        {
+            //  paciente regular esperando en la fila
+            sem_wait(&sem_fila_medicos[fila]);
+            printf("Paciente regular en consulta\n");
+
+            // Esperar a que el médico esté disponible
+            sem_wait(&sem_atencion_medicos[fila]);
+
+            // Simular la consulta
+            sleep(1);
+
+            printf("Paciente está siendo atendido por el médico %d.\n", fila);
+            contador_pacientes_regulares[fila]++;
+            // liberar al médico
+            sem_post(&sem_atencion_medicos[fila]);
+            sem_post(&sem_fila_medicos[fila]);
+            // sem_post(&paciente_salir_consultorio[fila]); // Liberar el espacio en la consulta para otros pacientes
+        }
         sem_post(&mutex);
-        sem_post(&cajero_libre);                            // Esperar a que haya un cajero libre
-        printf("Cliente abonando la consulta\n");
-        sem_wait(&consulta_abonada);                        // Cliente abonando la consulta
-        sem_post(&capacidad_consultorio);                   // Liberar el cupo
+        // Esperar en la fila de cajeros
+        sem_wait(&sem_fila_cajeros);
+
+        // Esperar a que un cajero esté disponible
+        for (int i = 0; i < NUM_CAJEROS; i++)
+        {
+            if (sem_trywait(&sem_atencion_cajeros[i]) == 0)
+            {
+                printf("Pacienteestá pagando al cajero %d.\n", i);
+                break;
+            }
+        }
+
+        sleep(1); // Simular tiempo de pago
+
+        // Liberar al cajero
+        for (int i = 0; i < NUM_CAJEROS; i++)
+        {
+            if (sem_trywait(&sem_atencion_cajeros[i]) == 0)
+            {
+                sem_post(&sem_atencion_cajeros[i]);
+                break;
+            }
+        }
+        sem_post(&sem_fila_cajeros);
+
+        // Salir del centro médico
+        sem_post(&capacidad_consultorio); // Liberar el cupo
+        printf("Paciente %d salió del centro médico.\n");
+
+        pthread_exit(NULL);
     }
 }
 
 void *cajero(void *arg)
+
 {
+    int id_cajero = *(int *)arg;
+
+    printf("Cajero %d iniciado.\n", id_cajero);
+
     while (1)
     {
-        sem_wait(&cajero_libre);                            // Esperar a que haya un cajero libre
-        printf("Cliente atendido cajero\n");
-        sem_post(&consulta_abonada);
+        if (sem_trywait(&sem_fila_cajeros) == 0)
+        {
+            sem_post(&sem_fila_cajeros);
+            sem_wait(&sem_atencion_cajeros[id_cajero]);
+        }
+        else
+        {
+            // Si no hay pacientes, dormir
+            printf("Cajero %d esperando pacientes.\n", id_cajero);
+            sleep(2); // Simular espera
+            continue;
+        }
+        // Cobrar al paciente (simulado)
+        printf("Cajero %d cobrando a un paciente.\n", id_cajero);
+        sleep(1); // Simular tiempo de cobro
+
+        // Liberar al paciente
+        sem_post(&sem_atencion_cajeros[id_cajero]);
     }
 }
 
@@ -155,7 +218,7 @@ void handle_signal(int sig)
 
 int main()
 {
-    /*Rejistrar manjador de senales */
+    /*Registrar manejador de senales */
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
 
@@ -169,21 +232,23 @@ int main()
 
     /*Inicializacion de semaforos*/
     sem_init(&capacidad_consultorio, 0, CAPACIDAD_CENTRO);
-    sem_init(&cajero_libre, 0, 2);
-    sem_init(&consulta_abonada, 0, 0);
+    sem_init(&sem_fila_cajeros, 0, 0);
 
     int rc;
 
     for (int i = 0; i < NUM_MEDICOS; i++)
     {
-        sem_init(&medicos_sem[i], 0, 1);
-        sem_init(&paciente_listo[i], 0, 0);
-        sem_init(&paciente_salir_consultorio[i], 0, 0);
+        sem_init(&sem_fila_medicos[i], 0, 0); // indica medico
+        sem_init(&sem_atencion_medicos[i], 0, 1);
     }
 
-    sem_init(&consulta_terminada, 0, 0);
-    sem_init(&mutex, 0, 1);
-    sem_init(&fila_vip, 0, 0);
+    for (int i = 0; i < NUM_CAJEROS; i++)
+    {
+        sem_init(&sem_atencion_cajeros[i], 0, 1);
+    }
+
+    sem_init(&mutex, 0, 1);        //
+    sem_init(&sem_fila_vip, 0, 0); //
 
     /*********Creacion Hilos*********/
 
@@ -205,8 +270,10 @@ int main()
         //*********** Creación de hilo Cajero
         for (int i = 0; i < NUM_CAJEROS; i++)
         {
+            int *idc = malloc(sizeof(int)); // Asignar memoria para el id
+            *idc = i;
             printf("Creando hilo de cajero %d \n", i);
-            if (pthread_create(&h_cajeros[i], NULL, cajero, NULL) != 0)
+            if (pthread_create(&h_cajeros[i], NULL, cajero, (void *)idc) != 0)
             {
                 printf("Error Creando cajero\n");
                 exit(-1);
@@ -223,7 +290,7 @@ int main()
                 exit(-1);
             }
 
-            sleep(3);
+            sleep(2);
         }
 
         //******  Esperar a que todos los hilos de médicos terminen
@@ -242,13 +309,16 @@ int main()
     sem_destroy(&capacidad_consultorio);
     for (int i = 0; i < NUM_MEDICOS; i++)
     {
-        sem_destroy(&medicos_sem[i]);
-        sem_destroy(&paciente_listo[i]);
-        sem_destroy(&paciente_salir_consultorio[i]);
+        sem_destroy(&sem_fila_medicos[i]);
+        sem_destroy(&sem_atencion_medicos[i]);
     }
 
-    sem_destroy(&cajero_libre);
-    sem_destroy(&consulta_terminada);
+    for (int i = 0; i < NUM_CAJEROS; i++)
+    {
+        sem_destroy(&sem_atencion_cajeros[i]);
+    }
+
+    sem_destroy(&sem_fila_cajeros);
     sem_destroy(&mutex);
 
     return 0;
